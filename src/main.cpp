@@ -16,7 +16,7 @@ typedef enum TRANSFER_RESPONSE_CODE{
 const int ledPin = 13;
 
 void heartbeat() {
-        static byte heartState = 1;
+    static byte heartState = 1;
 	static unsigned long previousBeat = millis();
 	unsigned long currentMillis = millis();
 	if (currentMillis - previousBeat >= 1000) {
@@ -24,6 +24,17 @@ void heartbeat() {
 		heartState ^= 1;
 		digitalWrite(ledPin, heartState);
 	}
+}
+
+// crc16 ccitt 0x1021 checksum
+uint16_t crc16(uint8_t const *data, size_t size) {
+    uint16_t crc = 0;     
+    while (size--) {         
+        crc ^= *data++;         
+        for (uint8_t k = 0; k < 8; k++)             
+        crc = crc & 1 ? (crc >> 1) ^ 0x8408 : crc >> 1;     
+    }     
+    return crc; 
 }
 
 uint8_t readRXBuffer(uint8_t *data_ptr, uint8_t len) {
@@ -40,13 +51,29 @@ uint8_t readRXBuffer(uint8_t *data_ptr, uint8_t len) {
 // send data here
 void serial_TX() {
   char tx_data[128] = {0};
+  randomSeed(analogRead(0));
+  char rand_len = random(10,124);
+
   tx_data[0] = 0x19;
   tx_data[1] = 0x94;
 
-  tx_data[3] = 0x64; //packet len
+  tx_data[3] = rand_len; //packet len
   tx_data[5] = 0x08;
   tx_data[6] = 0x86;
   tx_data[10] = 0x02;
+
+  //generate random data
+  for (unsigned i=0; i<rand_len-10; i++) {
+      tx_data[11+i] = random(0,255);
+  }
+
+  //check sum
+  uint16_t checksum = crc16(&tx_data[2],rand_len+1);
+  tx_data[rand_len+2] = checksum >> 8;
+  tx_data[rand_len+3] = checksum & 0xFF;
+
+  Serial.write("Data transmitting: ");
+  Serial.write(tx_data,rand_len+1);
 }
 void setup() {
   pinMode(ledPin, OUTPUT);
@@ -83,6 +110,7 @@ void loop() {
     switch (rx_bytes[start_idx+10]) {
       case MASTER_REQUEST_DATA:
         // send data here
+        serial_TX();
         break;
       case MASTER_ISSUING_DATA:
         // receive data
