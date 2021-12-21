@@ -26,6 +26,13 @@ void heartbeat() {
 	}
 }
 
+//copy one array to another
+void copyArr(uint8_t *array_from, uint8_t *array_to, size_t size) {
+    while (size--) {
+      *array_to++ = *array_from++;
+    }
+}
+
 // crc16 ccitt 0x1021 checksum
 uint16_t crc16(uint8_t const *data, size_t size) {
     uint16_t crc = 0;     
@@ -39,7 +46,7 @@ uint16_t crc16(uint8_t const *data, size_t size) {
 
 uint8_t readRXBuffer(uint8_t *data_ptr, uint8_t len) {
   uint8_t data_counter = 0;
-  while (Serial.available() || data_counter < 0) {
+  while (Serial.available() || data_counter < len) {
     *data_ptr = Serial.read();
     data_ptr++;
     data_counter++;
