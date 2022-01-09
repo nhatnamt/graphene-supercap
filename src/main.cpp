@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include "communication.h"
 #include "memory.h"
 #include "supercap.h"
@@ -87,7 +88,7 @@ void setup() {
 
   Serial.begin(4800); //Baudrate set by Skykraft
   Serial.setTimeout(1);
-  // put your setup code here, to run once:
+  
 }
 
 void loop() {
@@ -127,6 +128,7 @@ void loop() {
         break;
     }
 
+    // will need to implement a state machine
     Serial.print("Packet received: bytes ");
     Serial.println(len);
     for(int i = 0; i < len; i++) {
