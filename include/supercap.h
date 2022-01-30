@@ -30,6 +30,17 @@ public:
         i2c_pipe->endTransmission();
     }
 
+    void setCurrent() {
+        i2c_pipe->beginTransmission(2);
+        i2c_pipe->write(1);
+        i2c_pipe->endTransmission();
+    }
+
+    void setIdle() {
+        i2c_pipe->beginTransmission(2);
+        i2c_pipe->write(1);
+        i2c_pipe->endTransmission();
+    }
 
 private:
     TwoWire *i2c_pipe;
