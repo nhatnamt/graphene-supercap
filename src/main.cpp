@@ -1,9 +1,42 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include "TeensyTimerTool.h"
 #include "communication.h"
 #include "memory.h"
 #include "supercap.h"
 
+<<<<<<< HEAD
+=======
+using namespace TeensyTimerTool;
+
+#define BUFFER_SIZE 128
+#define START_FLAG_MSB  0x19
+#define START_FLAG_LSB  0x94
+
+typedef enum TRANSFER_RESPONSE_CODE{
+  MASTER_REQUEST_DATA,
+  MASTER_ISSUING_DATA,
+  SLAVE_ACK,
+} tranfer_resposnse_code_t;
+
+typedef enum CAP_STATE {
+  CAP_STATE_IDLE,
+  CAP_STATE_CHARGE,
+  CAP_STATE_DISCHARGE,
+} cap_state_t;
+
+
+//global variables
+static volatile int cap_state;
+static int ticker_attached = 0;
+static int current_state = CAP_STATE_IDLE;
+static int prev_state = CAP_STATE_DISCHARGE;
+
+
+SuperCap SuperCap1(&Wire, 0x55);
+OneShotTimer StateTicker(TCK);
+
+>>>>>>> 5eb5a1424c2effd36b17623b1c8813fbe6e459a7
 const int ledPin = 13;
 SerialHandler serialHandler;
 
@@ -37,6 +70,62 @@ void copyArr(uint8_t *array_from, uint8_t *array_to, size_t size) {
 //   return data_counter;
 // }
 
+<<<<<<< HEAD
+=======
+  Serial.write("Data transmitting: ");
+  Serial.write(tx_data,rand_len+1);
+}
+void changeState(int next_state) {
+  ticker_attached = 0;
+  current_state = next_state;
+}
+
+// state daemon of the capacitor
+void stateDaemon(){
+    static unsigned long previous_state_time = millis();
+    switch (cap_state) {
+        case CAP_STATE_IDLE:
+            SuperCap1.setIdle();
+            SuperCap1.setCurrent(0);
+            unsigned long current_time = millis();
+            if (abs(current_time - previous_state_time) >= 5) {
+                prev_state = CAP_STATE_IDLE;
+                if (prev_state == CAP_STATE_DISCHARGE) {
+                    Serial.println("Changing to Charge");
+                    changeState(CAP_STATE_CHARGE);
+                }
+                else {
+                    Serial.println("Changing to Discharge");
+                    changeState(CAP_STATE_DISCHARGE);
+                }
+            }
+            break;
+
+        case CAP_STATE_CHARGE:
+            SuperCap1.setIdle();
+            SuperCap1.setCurrent(3);
+            unsigned long current_time = millis();
+            if (abs(current_time - previous_state_time) >= 2) {
+                Serial.println("Changing to IDLE from CHARGE");
+                prev_state = CAP_STATE_CHARGE;
+                changeState(CAP_STATE_IDLE);
+            }
+            break;
+
+        case CAP_STATE_DISCHARGE:
+            SuperCap1.setIdle();
+            SuperCap1.setCurrent(-3);
+            unsigned long current_time = millis();
+            if (abs(current_time - previous_state_time) >= 2) {
+                Serial.println("Changing to IDLE form DIS");
+                prev_state = CAP_STATE_DISCHARGE;
+                changeState(CAP_STATE_IDLE);
+            }
+            break;
+        
+  }
+}
+>>>>>>> 5eb5a1424c2effd36b17623b1c8813fbe6e459a7
 void setup() {
   pinMode(ledPin, OUTPUT);
   serialHandler.begin();
