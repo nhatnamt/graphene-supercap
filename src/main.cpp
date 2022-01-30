@@ -5,19 +5,7 @@
 #include "memory.h"
 #include "supercap.h"
 
-<<<<<<< HEAD
-=======
 using namespace TeensyTimerTool;
-
-#define BUFFER_SIZE 128
-#define START_FLAG_MSB  0x19
-#define START_FLAG_LSB  0x94
-
-typedef enum TRANSFER_RESPONSE_CODE{
-  MASTER_REQUEST_DATA,
-  MASTER_ISSUING_DATA,
-  SLAVE_ACK,
-} tranfer_resposnse_code_t;
 
 typedef enum CAP_STATE {
   CAP_STATE_IDLE,
@@ -36,7 +24,6 @@ static int prev_state = CAP_STATE_DISCHARGE;
 SuperCap SuperCap1(&Wire, 0x55);
 OneShotTimer StateTicker(TCK);
 
->>>>>>> 5eb5a1424c2effd36b17623b1c8813fbe6e459a7
 const int ledPin = 13;
 SerialHandler serialHandler;
 
@@ -70,11 +57,6 @@ void copyArr(uint8_t *array_from, uint8_t *array_to, size_t size) {
 //   return data_counter;
 // }
 
-<<<<<<< HEAD
-=======
-  Serial.write("Data transmitting: ");
-  Serial.write(tx_data,rand_len+1);
-}
 void changeState(int next_state) {
   ticker_attached = 0;
   current_state = next_state;
@@ -125,7 +107,6 @@ void stateDaemon(){
         
   }
 }
->>>>>>> 5eb5a1424c2effd36b17623b1c8813fbe6e459a7
 void setup() {
   pinMode(ledPin, OUTPUT);
   serialHandler.begin();

@@ -1,8 +1,7 @@
 #include "communication.h"
 
 
-SerialHandler::SerialHandler() {
-
+UART::UART(): rxState(FIRST_FLAG_FIND), rxPacketLength(0), rxPacketIndex(0){
 
     //set polynomial
     //crc.setPolynome(0x1021);
@@ -12,7 +11,7 @@ SerialHandler::SerialHandler() {
  * @brief Begin Serial Communication
  * 
  */
-void SerialHandler::begin()
+void UART::begin()
 {
     // PC Communication
     Serial.begin(9600);
@@ -26,40 +25,41 @@ void SerialHandler::begin()
  * @brief Transmit Serial data in the correct format
  * 
  */
-void SerialHandler::serialTx()
+void UART::transmit(uint8_t *arg_pPayload, uint8_t arg_payloadLen)
 {
-    char txFrame[128] = {0};    
-    txFrame[0]    = 0x19;
-    txFrame[1]    = 0x94;
+    UartBuffer txBuffer;
+    uint8_t packetLen = arg_payloadLen + 9;
 
-    txFrame[5]    = 0x08;
-    txFrame[6]    = 0x86;
-    txFrame[10]   = 0x02;
+    memset(txBuffer.data, 0, sizeof(txBuffer.data));            // clearing the txBuffer
 
-    uint8_t packetLen = m_payloadLen+9;
-    txFrame[3] = packetLen;
+    txBuffer.fields.startFlags[0] = 0x19;                       // start flag MSB & LSB
+    txBuffer.fields.startFlags[1] = 0x94;
+    txBuffer.fields.packetLength[0] = (packetLen >> 8) & 0xFF;  // packet length MSB & LSB
+    txBuffer.fields.packetLength[1] = packetLen & 0xFF;
+    txBuffer.fields.deviceId[0] = 0x08;                         // device ID 
+    txBuffer.fields.deviceId[1] = 0x86;                         // subsys ID
+    txBuffer.fields.transferResponseCode = SLAVE_ACK;
 
-    //generate random data for now
-    for (unsigned i=0; i<m_payloadLen; i++) 
-    {
-        txFrame[11+i] = random(0,255);
+    // copying the payload to txBuffer
+    for (int i = 0; i < arg_payloadLen; i++) {
+        txBuffer.fields.payload[i] = arg_pPayload[i];
     }
 
-    //calculate checksum
-    uint16_t checksum = crc16(&txFrame[4],packetLen-2);
-    txFrame[m_payloadLen+11] = checksum >> 8;
-    txFrame[m_payloadLen+12] = checksum & 0xFF;
+    // calculate checksum
+    uint16_t checksum = crc16(&txBuffer.data[4],packetLen-2);
+    txBuffer.fields.payload[arg_payloadLen] = (checksum >> 8) & 0xFF;
+    txBuffer.fields.payload[arg_payloadLen+1] = checksum & 0xFF;
 
-    // Transmitting data
+    // transmitting data
     Serial.write("Data transmitting: ");
-    for (int i=0; i<m_payloadLen+13; i++) {
-        Serial.print(txFrame[i],HEX);
+    for (int i=0; i<packetLen+4; i++) {
+        //send to UARt Device
+        Serial1.write(txBuffer.data[i]);
+        //send to PC 
+        Serial.print(txBuffer.data[i],HEX);
         Serial.print(" ");
     }
-    Serial.println("");
-    //Serial.write(txFrame,m_payloadLen+13);
-    Serial1.write(txFrame,m_payloadLen+13);
-
+    Serial.println(" ");
 }
 
 /**
@@ -69,7 +69,7 @@ void SerialHandler::serialTx()
  * @param arg_size  (char)      Length of the array
  * @return          (uint16_t)  CRC16 Checksum
  */
-uint16_t SerialHandler::crc16(char const *arg_pData, char arg_size)
+uint16_t UART::crc16(uint8_t const *arg_pData, uint8_t arg_size)
 {
     int i, crc = 0;
     for (; arg_size>0; arg_size--)         /* Step through bytes in memory */
@@ -86,84 +86,82 @@ uint16_t SerialHandler::crc16(char const *arg_pData, char arg_size)
     return(crc);                           /* Return updated CRC */
 }
 
-void SerialHandler::setPayload(char arg_payload[115], char arg_len)
-{
-    for (int i=0; i<arg_len; i++)
-    {
-      m_payload[i] = arg_payload[i];
-    }
-    m_payloadLen = arg_len;
-}
 /**
  * @brief Handle Serial receive data and act accordingly
  * 
  */
-void SerialHandler::handler()
+int8_t UART::receive(uint8_t *arg_pPacket)
 {
-    //local vars
-    char rxFrame[128] = {0};
-    byte startIdx = 0, packetLen = 0;
-    randomSeed(analogRead(0));
-    char rand_len = random(10,124);
-    char payload[115] = {0};
-    setPayload(payload,rand_len);
-    delay(100);
-    serialTx();
-    digitalWrite(13, 0);
-    delay(100);
-    digitalWrite(13, 1);
-    // if new data is available
-    if(Serial1.available() > 0)
+    UartBuffer rxBuffer;
+    if(Serial1.available())
     {
-        int frameLen = Serial1.readBytes(&rxFrame[0],BUFFER_SIZE);
-
-        // find the start flag
-        for (int i=0;i<frameLen-1;i++)
+        rxByte = Serial1.read();
+        switch (rxState)
         {
-            if (rxFrame[i] == START_FLAG_MSB && rxFrame[i+1] == START_FLAG_LSB)
+        case FIRST_FLAG_FIND:
+            if (rxByte == 0x19) rxState++;
+            break;
+
+        case SECOND_FLAG_FIND:
+            if (rxByte == 0x94) rxState++;
+            memset(rxBuffer.data, 0, sizeof(rxBuffer.data));
+            break;
+
+        case MSB_PACKET_LEN_FIND:
+            rxPacketLen = rxByte << 8;
+            rxBuffer.data[2] = rxByte;
+            rxState++;
+            break;
+
+        case LSB_PACKET_LEN_FIND:
+            rxPacketLen |= rxByte &0xFF;
+            rxBuffer.data[3] = rxByte;
+            rxState++;
+            break;
+        
+        case PACKET_PROCESS:
+            rxPacketCount++;
+            if (rxPacketCount < rxPacketLen) 
             {
-                startIdx = i;
-                packetLen = rxFrame[i+3];
-                Serial.print("New packet received: "); Serial.println(startIdx);
+                rxBuffer.data[3+rxPacketCount] = rxByte;
                 break;
             }
-        } 
+            else
+            {
+                rxBuffer.data[3+rxPacketCount] = rxByte;
+                rxState++;
 
-        //decide what todo
-        char transferCode = rxFrame[startIdx+10];
-        switch (transferCode)
-        {
-        case MASTER_REQUEST_DATA:
-        {
-            randomSeed(analogRead(0));
-            char rand_len = random(10,124);
-            char payload[115] = {0};
-            setPayload(payload,rand_len);
-            serialTx();
-            break;
-        }
-        
-        case MASTER_ISSUING_DATA:
-        {
-            Serial.println("Master issued data");
-            randomSeed(analogRead(0));
-            char rand_len = random(10,124);
-            char payload[115] = {0};
-            setPayload(payload,rand_len);
-            serialTx();
-            break;
-        }
-        }
-
-        //debug
-        Serial.print("Packet received: ");
-        Serial.println(packetLen);
-        for(int i = 0; i < packetLen; i++) 
-        {
-            Serial.print(rxFrame[i],HEX);
+            } 
+            // check for crc
+            uint16_t rxChecksum = 0;
+            uint16_t calculatedChecksum = crc16(&rxBuffer.data[4],rxPacketLen-2);
+            rxChecksum = rxBuffer.data[rxPacketLen + 2] << 8;
+            rxChecksum |= rxBuffer.data[rxPacketLen + 3];
+            if (rxChecksum != calculatedChecksum) 
+            {
+                Serial.println("CRC Failed");
+                rxState = 0;
+                rxPacketCount = 0;
+                rxPacketLen = 0;
+                return -1;
+            }
+            
+            Serial.print("Received: ");
+            for (int i = 0; i < (rxPacketLen - 9); i++) 
+            {
+                Serial.print((char)rxBuffer.data[i + 11]);
+            }
             Serial.println("");
+
+            rxState = 0;
+            rxPacketCount = 0;
+            rxPacketLen = 0;
+            break;
+        default:
+            rxState = 0;
+            rxPacketCount = 0;
+            rxPacketLen = 0;
+            break;
         }
     }
-
-    delay(5); 
 }
