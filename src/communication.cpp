@@ -1,11 +1,9 @@
 #include "communication.h"
 
-
-UART::UART(): rxState(FIRST_FLAG_FIND), rxPacketLength(0), rxPacketIndex(0){
-
-    //set polynomial
-    //crc.setPolynome(0x1021);
-}
+/*
+ *    @brief  Instantiates a new UART class
+ */
+UART::UART(): rxState(FIRST_FLAG_FIND), rxPacketLen(0), rxPacketCount(0){}
 
 /**
  * @brief Begin Serial Communication
@@ -120,6 +118,7 @@ int8_t UART::receive(uint8_t *arg_pPacket)
             break;
         
         case PACKET_PROCESS:
+        {
             rxPacketCount++;
             if (rxPacketCount < rxPacketLen) 
             {
@@ -157,6 +156,7 @@ int8_t UART::receive(uint8_t *arg_pPacket)
             rxPacketCount = 0;
             rxPacketLen = 0;
             break;
+        }
         default:
             rxState = 0;
             rxPacketCount = 0;
