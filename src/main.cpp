@@ -24,7 +24,7 @@ CircularBuffer<ExprimentBuffer,4> transmitBuffer; // contain 4 payload, each for
 CircularBuffer<ExprimentBuffer,8> transmitQueue; // contain 2 experiment data packet, each has 4 payload waiting to copied to the transmit buffer
 
 
-//SuperCap superCaps[] = {SuperCap(1,2),SuperCap(1,2),SuperCap(1,2),SuperCap(1,2)};
+SuperCap superCaps[] = {SuperCap(4,18),SuperCap(5,17),SuperCap(6,16),SuperCap(7,14)};
 
 const int ledPin = 13;
 UART obcUART;
