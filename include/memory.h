@@ -1,3 +1,4 @@
+// AVR use little endian so we will need to create array of uint8_t to manually push for big endian
 #define EXP_FIELDS_SIZE 6
 
 struct DataPointFields { // 6 bytes

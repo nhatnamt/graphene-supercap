@@ -9,7 +9,7 @@
 
 using namespace TeensyTimerTool;
 
-#define DATA_COLLECT_INTERTVAL 10 //ms
+#define DATA_COLLECT_INTERTVAL 62 //ms
 
 typedef enum CAP_STATE {
   CAP_STATE_IDLE,
@@ -71,20 +71,24 @@ void stateDaemon()
 				for (byte i=0; i<4; i++) {
 					expBuffers[i].fields.exprimentNo[0] = (experimentCounter >> 8) & 0xFF;
 					expBuffers[i].fields.exprimentNo[1] = experimentCounter & 0xFF;
-					expBuffers[i].fields.startTemp[0] = (20 >> 8) & 0xFF; // record start temperature
-					expBuffers[i].fields.startTemp[1] = 20 & 0xFF;
+					int temp = random(65000);
+					expBuffers[i].fields.startTemp[0] = (temp >> 8) & 0xFF; // record start temperature
+					expBuffers[i].fields.startTemp[1] = temp & 0xFF;
 				}
 			}
 			
 			// record time, voltage and current
 			for (byte i=0; i<4; i++) {
+				int voltage,current;
+				voltage = random(65000);
+				current = random(65000);
 				unsigned int deltaTime = abs(millis() - startTime);
 				expBuffers[i].fields.chargeData[dataPointCounter-1].time[0] = (deltaTime >> 8) & 0xFF; // remember to handle this
 				expBuffers[i].fields.chargeData[dataPointCounter-1].time[1] = deltaTime & 0xFF;
-				expBuffers[i].fields.chargeData[dataPointCounter-1].voltage[0] = (12 >> 8) & 0xFF; // remember to handle this
-				expBuffers[i].fields.chargeData[dataPointCounter-1].voltage[1] = 12 & 0xFF;
-				expBuffers[i].fields.chargeData[dataPointCounter-1].current[0] = (43 >> 8) & 0xFF; // remember to handle this
-				expBuffers[i].fields.chargeData[dataPointCounter-1].current[1] = 43 & 0xFF;
+				expBuffers[i].fields.chargeData[dataPointCounter-1].voltage[0] = (voltage >> 8) & 0xFF; // remember to handle this
+				expBuffers[i].fields.chargeData[dataPointCounter-1].voltage[1] = voltage & 0xFF;
+				expBuffers[i].fields.chargeData[dataPointCounter-1].current[0] = (current >> 8) & 0xFF; // remember to handle this
+				expBuffers[i].fields.chargeData[dataPointCounter-1].current[1] = current & 0xFF;
 			}
 
 			// reset counter and change state once have more than 8 points
@@ -109,13 +113,16 @@ void stateDaemon()
 			
 			// record time, voltage and current
 			for (byte i=0; i<4; i++) {
+				int voltage,current;
+				voltage = 0;//random(65000);
+				current = 0;//random(65000);
 				unsigned int deltaTime = abs(millis() - startTime);
 				expBuffers[i].fields.dischargeData[dataPointCounter-1].time[0] = (deltaTime >> 8) & 0xFF; // remember to handle this
 				expBuffers[i].fields.dischargeData[dataPointCounter-1].time[1] = deltaTime & 0xFF;
-				expBuffers[i].fields.dischargeData[dataPointCounter-1].voltage[0] = (11 >> 8) & 0xFF; // remember to handle this
-				expBuffers[i].fields.dischargeData[dataPointCounter-1].voltage[1] = 11 & 0xFF;
-				expBuffers[i].fields.dischargeData[dataPointCounter-1].current[0] = (23 >> 8) & 0xFF; // remember to handle this
-				expBuffers[i].fields.dischargeData[dataPointCounter-1].current[1] = 23 & 0xFF;
+				expBuffers[i].fields.dischargeData[dataPointCounter-1].voltage[0] = (voltage >> 8) & 0xFF; // remember to handle this
+				expBuffers[i].fields.dischargeData[dataPointCounter-1].voltage[1] = voltage & 0xFF;
+				expBuffers[i].fields.dischargeData[dataPointCounter-1].current[0] = (current >> 8) & 0xFF; // remember to handle this
+				expBuffers[i].fields.dischargeData[dataPointCounter-1].current[1] = current & 0xFF;
 			}
 
 			// reset counter and change state once have more than 8 points
@@ -131,11 +138,11 @@ void stateDaemon()
 				for (byte i=0; i<4; i++) {
 					transmitQueue.push(expBuffers[i]);
 				}
-				// uint8_t test[104];
-				// for (byte i=0; i<104; i++) {
-				// 	test[i] = transmitQueue[0].data[i];
-				// }
-				// obcUART.transmit(test,104);
+				uint8_t test[104];
+				for (byte i=0; i<104; i++) {
+					test[i] = transmitQueue[0].data[i];
+				}
+				obcUART.transmit(test,104);
         	}	
 			break;
 		}
@@ -145,6 +152,7 @@ void stateDaemon()
 void setup() {
   pinMode(ledPin, OUTPUT);
   obcUART.begin();
+  randomSeed(analogRead(0));
 
   //SuperCap1.readCurrent();
   //SuperCap1.begin(0x88,&Wire1);
