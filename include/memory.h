@@ -1,5 +1,6 @@
 // AVR use little endian so we will need to create array of uint8_t to manually push for big endian
 #define EXP_FIELDS_SIZE 6
+#define EXP_BUFFER_LEN 105
 
 struct DataPointFields { // 6 bytes
     uint8_t time[2];
@@ -9,6 +10,7 @@ struct DataPointFields { // 6 bytes
 
 // 115 max
 struct ExprimentFields {  // 104 bytes
+    uint8_t superCapNo;
     uint8_t exprimentNo[2]; // 2 bytes
     uint8_t startTemp[2]; // 2 bytes
     DataPointFields chargeData[8]; //6*8 = 48 bytes  
@@ -20,5 +22,5 @@ struct ExprimentFields {  // 104 bytes
 union ExprimentBuffer
 {
     ExprimentFields fields;
-    uint8_t data[104];
+    uint8_t data[EXP_BUFFER_LEN];
 };

@@ -21,12 +21,10 @@ typedef enum CAP_STATE {
 //global variables
 byte dataPointCounter = 0;
 CircularBuffer<ExprimentBuffer,4> transmitBuffer; // contain 4 payload, each for a supercap waiting to be transmitted
-CircularBuffer<ExprimentBuffer,8> transmitQueue; // contain 2 experiment data packet, each has 4 payload waiting to copied to the transmit buffer
+CircularBuffer<ExprimentBuffer,80> transmitQueue; // contain 2 experiment data packet, each has 4 payload waiting to copied to the transmit buffer
 
-
-SuperCap superCaps[] = {SuperCap(4,18),SuperCap(5,17),SuperCap(6,16),SuperCap(7,14)};
-
-const int ledPin = 13;
+SuperCap superCaps[] = {SuperCap(4,18,A0),SuperCap(5,17,A1),SuperCap(6,16,A2),SuperCap(7,14,A3)};
+uint8_t superCapAddrs[] = {0x40,0x41,0x44,0x45}; //addresses or INA260s
 UART obcUART;
 
 // state daemon of the capacitor
@@ -69,9 +67,10 @@ void stateDaemon()
 				startTime = millis(); // record start time
 				experimentCounter++;
 				for (byte i=0; i<4; i++) {
+					expBuffers[i].fields.superCapNo = i+1;
 					expBuffers[i].fields.exprimentNo[0] = (experimentCounter >> 8) & 0xFF;
 					expBuffers[i].fields.exprimentNo[1] = experimentCounter & 0xFF;
-					int temp = random(65000);
+					int temp = 10; //random(65000);
 					expBuffers[i].fields.startTemp[0] = (temp >> 8) & 0xFF; // record start temperature
 					expBuffers[i].fields.startTemp[1] = temp & 0xFF;
 				}
@@ -80,8 +79,8 @@ void stateDaemon()
 			// record time, voltage and current
 			for (byte i=0; i<4; i++) {
 				int voltage,current;
-				voltage = random(65000);
-				current = random(65000);
+				voltage = 4;//random(65000);
+				current = 5;//random(65000);
 				unsigned int deltaTime = abs(millis() - startTime);
 				expBuffers[i].fields.chargeData[dataPointCounter-1].time[0] = (deltaTime >> 8) & 0xFF; // remember to handle this
 				expBuffers[i].fields.chargeData[dataPointCounter-1].time[1] = deltaTime & 0xFF;
@@ -92,7 +91,7 @@ void stateDaemon()
 			}
 
 			// reset counter and change state once have more than 8 points
-        	if (dataPointCounter > 8) 
+        	if (dataPointCounter > 7) 
 			{
           		dataPointCounter = 0;
 				previousState = CAP_STATE_CHARGE;
@@ -106,7 +105,8 @@ void stateDaemon()
 			dataPointCounter++;
 			if (dataPointCounter == 1) 
 			{
-				for (byte i=0; i<4; i++) {
+				for (byte i=0; i<4; i++) 
+				{
 					expBuffers[i].fields.midTemp = 22; // record start temperature
 				}
 			}
@@ -126,23 +126,20 @@ void stateDaemon()
 			}
 
 			// reset counter and change state once have more than 8 points
-        	if (dataPointCounter > 8) 
+        	if (dataPointCounter > 7) 
 			{
 				for (byte i=0; i<4; i++) {
 					expBuffers[i].fields.endTemp = 22; // record start temperature
 				}
+
           		dataPointCounter = 0;
 				previousState = CAP_STATE_DISCHARGE;
 				currentState = CAP_STATE_IDLE;
+
 				// push into the transmit queue
 				for (byte i=0; i<4; i++) {
 					transmitQueue.push(expBuffers[i]);
 				}
-				uint8_t test[104];
-				for (byte i=0; i<104; i++) {
-					test[i] = transmitQueue[0].data[i];
-				}
-				obcUART.transmit(test,104);
         	}	
 			break;
 		}
@@ -150,12 +147,14 @@ void stateDaemon()
 }
 
 void setup() {
-  pinMode(ledPin, OUTPUT);
-  obcUART.begin();
-  randomSeed(analogRead(0));
+  	obcUART.begin();
 
-  //SuperCap1.readCurrent();
-  //SuperCap1.begin(0x88,&Wire1);
+	//setup super caps
+  	for (uint8_t i=0; i<4; i++) {
+	  	superCaps[i].init();
+	  	superCaps[i].begin(superCapAddrs[i],&Wire1);
+  	}
+  	randomSeed(analogRead(0));
 }
 
 void loop() {
@@ -165,6 +164,39 @@ void loop() {
 	if (deltaTime >= DATA_COLLECT_INTERTVAL) {
 		previousBeat = currentMillis;
     	stateDaemon();
+	}
+
+	//check if new message has been received
+	UartBuffer rxData;
+	memset(rxData.data, 0, sizeof(rxData.data));
+	int16_t len = obcUART.receive(rxData.data);
+	if (len > -1) 
+	{
+		if (rxData.fields.transferResponseCode == MASTER_REQUEST_DATA) //obc is requesting data
+		{
+			ExprimentBuffer payloadBuffer;
+			memset(payloadBuffer.data, 0, sizeof(payloadBuffer.data));
+			// check if the transmit buffer is empty and if there is data 
+			// waiting to be loaded from the queue
+			if (transmitBuffer.isEmpty() && (transmitQueue.size() >= 3)) 
+			{
+				// load data for 4 capacitors
+				Serial.println("Loading more...");
+				for (uint8_t i=0; i<4; i++) 
+				{
+					transmitBuffer.push(transmitQueue.shift());
+				}	
+				payloadBuffer = transmitBuffer.shift();
+			} 
+			// if not empty the pop a payload
+			else 
+			{
+				payloadBuffer = transmitBuffer.shift();
+			}
+			
+			// finally send it away, if no data is available, send all 0
+			obcUART.transmit(payloadBuffer.data,EXP_BUFFER_LEN);
+		}
 	}
 }
 
